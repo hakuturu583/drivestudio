@@ -101,12 +101,14 @@ ensure_smpl() {
   local env_url="${SMPL_NEUTRAL_URL:-https://smpl.is.tue.mpg.de/download.php?filename=SMPL_python_v.1.1.0.zip}"
   local env_gid="${SMPL_NEUTRAL_GDRIVE_ID:-}"
   local strict="${SMPL_DOWNLOAD_STRICT:-1}"
+  rm -f "${SMPL_LOCAL}"
   echo "Attempting to download SMPL_NEUTRAL.pkl using ${IMAGE} (URL=${env_url}, GDRIVE_ID=${env_gid}, STRICT=${strict})"
   mkdir -p "$(dirname "${SMPL_LOCAL}")"
   docker run --rm \
     -e SMPL_NEUTRAL_URL="${env_url}" \
     -e SMPL_NEUTRAL_GDRIVE_ID="${env_gid}" \
     -e SMPL_DOWNLOAD_STRICT="${strict}" \
+    -e SMPL_FORCE_DOWNLOAD=1 \
     -v "${REPO_ROOT}:/workspace/drivestudio" \
     "${IMAGE}" bash /workspace/drivestudio/docker/fetch_smpl.sh
 }

@@ -6,6 +6,7 @@ export DEST="/workspace/drivestudio/smpl_models/SMPL_NEUTRAL.pkl"
 export URL="${SMPL_NEUTRAL_URL:-https://smpl.is.tue.mpg.de/download.php?filename=SMPL_python_v.1.1.0.zip}"
 export GDRIVE_ID="${SMPL_NEUTRAL_GDRIVE_ID:-}"
 export STRICT="${SMPL_DOWNLOAD_STRICT:-1}"
+export FORCE="${SMPL_FORCE_DOWNLOAD:-0}"
 
 python3 - <<'PY'
 import os
@@ -13,11 +14,13 @@ import sys
 import tempfile
 import zipfile
 import urllib.request
+import shutil
 
 dest = os.environ.get("DEST", "/workspace/drivestudio/smpl_models/SMPL_NEUTRAL.pkl")
 url = os.environ.get("URL", "")
 gid = os.environ.get("GDRIVE_ID", "")
 strict = os.environ.get("STRICT", "1") == "1"
+force = os.environ.get("FORCE", "0") == "1"
 
 def download_from_url(u: str) -> bool:
     if not u:
@@ -67,6 +70,13 @@ def finalize_download(tmp_path: str) -> bool:
         return True
     os.replace(tmp_path, dest)
     return True
+
+if os.path.exists(dest) and force:
+    try:
+        os.remove(dest)
+        shutil.rmtree(os.path.dirname(dest), ignore_errors=False)
+    except Exception:
+        pass
 
 if os.path.exists(dest):
     print(f"SMPL model already present at {dest}")
