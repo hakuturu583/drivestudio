@@ -4,7 +4,6 @@ set -euo pipefail
 
 export DEST="/workspace/drivestudio/smpl_models/SMPL_NEUTRAL.pkl"
 export URL="${SMPL_NEUTRAL_URL:-https://smpl.is.tue.mpg.de/download.php?filename=SMPL_python_v.1.1.0.zip}"
-export GDRIVE_ID="${SMPL_NEUTRAL_GDRIVE_ID:-}"
 export STRICT="${SMPL_DOWNLOAD_STRICT:-1}"
 export FORCE="${SMPL_FORCE_DOWNLOAD:-0}"
 
@@ -38,20 +37,7 @@ def download_from_url(u: str) -> bool:
         return False
 
 def download_from_gdrive(file_id: str) -> bool:
-    if not file_id:
-        return False
-    tmp = tempfile.NamedTemporaryFile(delete=False).name
-    try:
-        import gdown
-        gdown.download(id=file_id, output=tmp, quiet=False)
-        return finalize_download(tmp)
-    except Exception as exc:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        sys.stderr.write(f"[warn] gdown download failed: {exc}\n")
-        return False
+    return False
 
 def finalize_download(tmp_path: str) -> bool:
     os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -86,9 +72,6 @@ source = None
 if download_from_url(url):
     print(f"Downloaded SMPL_NEUTRAL.pkl from URL -> {dest}")
     source = "url"
-elif download_from_gdrive(gid):
-    print(f"Downloaded SMPL_NEUTRAL.pkl from Google Drive ID {gid} -> {dest}")
-    source = "gdrive"
 
 if source:
     try:
