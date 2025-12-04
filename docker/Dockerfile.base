@@ -34,17 +34,6 @@ RUN python3 -m pip install --no-build-isolation --no-use-pep517 git+https://gith
 RUN python3 -m pip install --no-build-isolation --no-use-pep517 git+https://github.com/NVlabs/nvdiffrast
 RUN python3 -m pip install --no-build-isolation --no-use-pep517 -e third_party/smplx
 
-COPY docker/fetch_smpl.sh docker/fetch_smpl.sh
-ARG SMPL_NEUTRAL_URL=https://smpl.is.tue.mpg.de/download.php?filename=SMPL_python_v.1.1.0.zip
-ARG SMPL_NEUTRAL_GDRIVE_ID=""
-ARG SMPL_DOWNLOAD_STRICT=1
-ENV SMPL_NEUTRAL_URL=${SMPL_NEUTRAL_URL} \
-    SMPL_NEUTRAL_GDRIVE_ID=${SMPL_NEUTRAL_GDRIVE_ID} \
-    SMPL_DOWNLOAD_STRICT=${SMPL_DOWNLOAD_STRICT}
-RUN DEST=/workspace/drivestudio/smpl_models/SMPL_NEUTRAL.pkl \
-    URL=${SMPL_NEUTRAL_URL} GDRIVE_ID=${SMPL_NEUTRAL_GDRIVE_ID} STRICT=${SMPL_DOWNLOAD_STRICT} \
-    bash docker/fetch_smpl.sh
-
 ENV PYTHONPATH=/workspace/drivestudio
 
 CMD ["bash"]

@@ -78,7 +78,7 @@ if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
   (cd "${REPO_ROOT}" && docker buildx bake base)
 fi
 
-# Ensure SMPL model is present and valid on host (image contains it, but mount would hide it)
+# Ensure SMPL model is present and valid on host (download if missing/invalid)
 SMPL_LOCAL="${REPO_ROOT}/smpl_models/SMPL_NEUTRAL.pkl"
 validate_smpl() {
   local path="$1"
@@ -97,40 +97,27 @@ except Exception as exc:
 PY
 }
 
-if ! validate_smpl "${SMPL_LOCAL}"; then
-  echo "SMPL_NEUTRAL.pkl missing or invalid locally; attempting recovery..."
+ensure_smpl() {
+  local env_url="${SMPL_NEUTRAL_URL:-https://smpl.is.tue.mpg.de/download.php?filename=SMPL_python_v.1.1.0.zip}"
+  local env_gid="${SMPL_NEUTRAL_GDRIVE_ID:-}"
+  local strict="${SMPL_DOWNLOAD_STRICT:-1}"
+  echo "Attempting to download SMPL_NEUTRAL.pkl using ${IMAGE} (URL=${env_url}, GDRIVE_ID=${env_gid}, STRICT=${strict})"
   mkdir -p "$(dirname "${SMPL_LOCAL}")"
-  TMP_SMP=$(mktemp)
-  if docker run --rm "${IMAGE}" cat /workspace/drivestudio/smpl_models/SMPL_NEUTRAL.pkl > "${TMP_SMP}" 2>/dev/null; then
-    if validate_smpl "${TMP_SMP}"; then
-      mv "${TMP_SMP}" "${SMPL_LOCAL}"
-    else
-      rm -f "${TMP_SMP}"
-    fi
-  else
-    rm -f "${TMP_SMP}"
-  fi
+  docker run --rm \
+    -e SMPL_NEUTRAL_URL="${env_url}" \
+    -e SMPL_NEUTRAL_GDRIVE_ID="${env_gid}" \
+    -e SMPL_DOWNLOAD_STRICT="${strict}" \
+    -v "${REPO_ROOT}:/workspace/drivestudio" \
+    "${IMAGE}" bash /workspace/drivestudio/docker/fetch_smpl.sh
+}
+
+if ! validate_smpl "${SMPL_LOCAL}"; then
+  echo "SMPL_NEUTRAL.pkl missing or invalid locally; downloading..."
+  ensure_smpl || true
 fi
 
 if ! validate_smpl "${SMPL_LOCAL}"; then
-  if [[ -n "${SMPL_NEUTRAL_GDRIVE_ID:-}" ]]; then
-    echo "Local SMPL still invalid; downloading via gdown (SMPL_NEUTRAL_GDRIVE_ID=${SMPL_NEUTRAL_GDRIVE_ID})..."
-    if ! python3 - <<PY
-import os, sys
-import gdown
-dst = r"${SMPL_LOCAL}"
-os.makedirs(os.path.dirname(dst), exist_ok=True)
-gdown.download(id=os.environ.get("SMPL_NEUTRAL_GDRIVE_ID"), output=dst, quiet=False)
-PY
-    then
-      echo "gdown download failed. Please place a valid SMPL_NEUTRAL.pkl at ${SMPL_LOCAL}." >&2
-      exit 1
-    fi
-  fi
-fi
-
-if ! validate_smpl "${SMPL_LOCAL}"; then
-  echo "SMPL_NEUTRAL.pkl is missing or invalid. Please place a valid file at ${SMPL_LOCAL} or set SMPL_NEUTRAL_GDRIVE_ID to a valid ID." >&2
+  echo "SMPL_NEUTRAL.pkl is missing or invalid. Please place a valid file at ${SMPL_LOCAL} or set SMPL_NEUTRAL_URL/SMPL_NEUTRAL_GDRIVE_ID." >&2
   exit 1
 fi
 
