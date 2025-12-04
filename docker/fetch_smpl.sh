@@ -72,13 +72,28 @@ if os.path.exists(dest):
     print(f"SMPL model already present at {dest}")
     sys.exit(0)
 
+source = None
 if download_from_url(url):
     print(f"Downloaded SMPL_NEUTRAL.pkl from URL -> {dest}")
-    sys.exit(0)
-
-if download_from_gdrive(gid):
+    source = "url"
+elif download_from_gdrive(gid):
     print(f"Downloaded SMPL_NEUTRAL.pkl from Google Drive ID {gid} -> {dest}")
-    sys.exit(0)
+    source = "gdrive"
+
+if source:
+    try:
+        import pickle
+        with open(dest, "rb") as f:
+            pickle.load(f, encoding="latin1")
+        print(f"Validated SMPL pickle from {source}.")
+        sys.exit(0)
+    except Exception as exc:
+        msg = f"Downloaded SMPL_NEUTRAL.pkl is invalid: {exc}"
+        if strict:
+            sys.stderr.write(msg + "\n")
+            sys.exit(1)
+        print("[warn]", msg)
+        sys.exit(0)
 
 msg = (
     "SMPL_NEUTRAL.pkl not downloaded. "
