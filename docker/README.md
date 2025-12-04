@@ -4,6 +4,7 @@
 - Build all: `docker buildx bake` (uses `docker-bake.hcl`)
 - Build only NuScenes: `docker buildx bake nuscenes`
 - Set a different tag prefix: `TAG_PREFIX=myrepo/drivestudio docker buildx bake`
+- SMPL model download (optional during build): set `SMPL_NEUTRAL_URL` or `SMPL_NEUTRAL_GDRIVE_ID` (defaults to the official SMPL zip URL) and `SMPL_DOWNLOAD_STRICT=0` if you want the build to continue when the download is blocked.
 
 Targets:
 - `base`: Common deps (PyTorch stack, gsplat, pytorch3d, nvdiffrast, smplx, etc.)

@@ -29,6 +29,7 @@ sky_masks/
 fine_dynamic_masks_example/
 *.sh
 !scripts/nuscenes.sh
+!docker/fetch_smpl.sh
 pandaset-devkit/
 
 # C extensions
