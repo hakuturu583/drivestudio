@@ -78,11 +78,15 @@ if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
   (cd "${REPO_ROOT}" && docker buildx bake base)
 fi
 
-# Ensure SMPL model is present and valid on host (download if missing/invalid)
-SMPL_LOCAL="${REPO_ROOT}/smpl_models/SMPL_NEUTRAL.pkl"
+# Ensure SMPL model is present and valid on host (no auto-download)
+SMPL_LOCAL_HOST="${REPO_ROOT}/smpl_models/SMPL_NEUTRAL.pkl"
+SMPL_LOCAL_CONTAINER="/workspace/drivestudio/smpl_models/SMPL_NEUTRAL.pkl"
 validate_smpl() {
-  local path="$1"
-  python3 - <<PY "$path"
+  local path_container="$1"
+  docker run --rm \
+    -v "${REPO_ROOT}:/workspace/drivestudio" \
+    "${IMAGE}" \
+    python3 - <<PY "$path_container"
 import os, pickle, sys
 path = sys.argv[1]
 if not os.path.isfile(path):
@@ -97,27 +101,8 @@ except Exception as exc:
 PY
 }
 
-ensure_smpl() {
-  local env_url="${SMPL_NEUTRAL_URL:-https://smpl.is.tue.mpg.de/download.php?filename=SMPL_python_v.1.1.0.zip}"
-  local strict="${SMPL_DOWNLOAD_STRICT:-1}"
-  rm -f "${SMPL_LOCAL}"
-  echo "Attempting to download SMPL_NEUTRAL.pkl using ${IMAGE} (URL=${env_url}, STRICT=${strict})"
-  mkdir -p "$(dirname "${SMPL_LOCAL}")"
-  docker run --rm \
-    -e SMPL_NEUTRAL_URL="${env_url}" \
-    -e SMPL_DOWNLOAD_STRICT="${strict}" \
-    -e SMPL_FORCE_DOWNLOAD=1 \
-    -v "${REPO_ROOT}:/workspace/drivestudio" \
-    "${IMAGE}" bash /workspace/drivestudio/docker/fetch_smpl.sh
-}
-
-if ! validate_smpl "${SMPL_LOCAL}"; then
-  echo "SMPL_NEUTRAL.pkl missing or invalid locally; downloading..."
-  ensure_smpl || true
-fi
-
-if ! validate_smpl "${SMPL_LOCAL}"; then
-  echo "SMPL_NEUTRAL.pkl is missing or invalid. Please place a valid file at ${SMPL_LOCAL} or set SMPL_NEUTRAL_URL." >&2
+if ! validate_smpl "${SMPL_LOCAL_CONTAINER}"; then
+  echo "SMPL_NEUTRAL.pkl is missing or invalid. Please place a valid file at ${SMPL_LOCAL_HOST} before running training." >&2
   exit 1
 fi
 

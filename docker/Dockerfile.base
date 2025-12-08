@@ -28,6 +28,8 @@ COPY . .
 
 # Core project dependencies and local modules shared across datasets.
 # Disable build isolation so legacy packages like chumpy can find pip during build.
+# Force CUDA extensions to build even when no GPU is visible during docker build.
+ENV FORCE_CUDA=1
 RUN python3 -m pip install --no-build-isolation --no-use-pep517 -r requirements.txt
 RUN python3 -m pip install --no-build-isolation --no-use-pep517 git+https://github.com/nerfstudio-project/gsplat.git@v1.3.0
 RUN python3 -m pip install --no-build-isolation --no-use-pep517 git+https://github.com/facebookresearch/pytorch3d.git
