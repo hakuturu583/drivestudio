@@ -6,7 +6,8 @@ trainer:
   type: models.trainers.MultiTrainer
   optim:
     num_iters: 30000
-    use_grad_scaler: true
+    use_amp: false
+    use_grad_scaler: false
     cache_buffer_freq: -1 # if > 0, use error based image sampler for training
   render:
     near_plane: 0.1 # near plane for rendering
@@ -65,7 +66,7 @@ trainer:
     split_screen_size: 0.05       # if a gaussian is more than this percent of screen space, split it
     stop_screen_size_at: 4000     # stop culling/splitting at this step WRT screen size of gaussians
     stop_split_at: 15000          # stop splitting at this step
-    sh_degree: 2                  # sh degree for gaussians
+    sh_degree: 3                  # sh degree for gaussians
 
 # ------------- Model ------------ #
 model:
@@ -73,10 +74,10 @@ model:
     type: models.gaussians.VanillaGaussians
     init:
       from_lidar:
-        num_samples: 400_000
+        num_samples: 800_000
         return_color: True
-      near_randoms: 50_000
-      far_randoms: 50_000
+      near_randoms: 100_000
+      far_randoms: 100_000
     reg:
       sharp_shape_reg:
         w: 1.
@@ -128,7 +129,7 @@ model:
       cull_scale_thresh: 0.1
       stop_screen_size_at: 30000
       stop_split_at: 20000
-      sh_degree: 2
+      sh_degree: 3
       cull_out_of_bound: false
       use_deformgs_for_nonrigid: True # default True
       use_deformgs_after: 3000        # default 3000

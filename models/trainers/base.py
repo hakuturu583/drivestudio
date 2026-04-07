@@ -89,7 +89,7 @@ class BasicTrainer(nn.Module):
         self.gaussian_ctrl_general_cfg = gaussian_ctrl_general_cfg
         self.step = 0
         self.device = device
-        self.use_amp = self.optim_general.get("use_grad_scaler", False) and self.device.type == "cuda"
+        self.use_amp = self.optim_general.get("use_amp", False) and self.device.type == "cuda"
         
         # dataset infos
         self.num_train_images = num_train_images
@@ -229,7 +229,7 @@ class BasicTrainer(nn.Module):
         self.lr_schedulers = lr_schedulers
         self.grad_scaler = torch.amp.GradScaler(
             "cuda",
-            enabled=self.optim_general.get("use_grad_scaler", False),
+            enabled=self.use_amp and self.optim_general.get("use_grad_scaler", False),
         )
 
     def autocast_context(self):
