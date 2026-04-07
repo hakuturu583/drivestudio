@@ -1,0 +1,64 @@
+[project]
+name = "drivestudio"
+version = "0.1.0"
+description = "DriveStudio environment definition"
+requires-python = "==3.9.*"
+dependencies = [
+    "torch==2.0.0+cu117",
+    "torchvision==0.15.0+cu117",
+    "xformers==0.0.18",
+    "timm==0.9.5",
+    "pytorch_msssim==1.0.0",
+    "omegaconf==2.3.0",
+    "torchmetrics==0.10.3",
+    "tensorboard==2.11.0",
+    "wandb==0.15.8",
+    "matplotlib==3.5.3",
+    "plotly==5.13.1",
+    "viser==0.2.1",
+    "imageio",
+    "imageio-ffmpeg",
+    "scikit-image==0.20.0",
+    "opencv-python",
+    "open3d==0.16.0",
+    "pyquaternion==0.9.9",
+    "chumpy",
+    "numpy==1.23.1",
+    "kornia==0.7.2",
+    "tqdm",
+    "gdown",
+    "nerfview==0.0.3",
+    "lpips==0.1.4",
+    "gsplat",
+    "pytorch3d",
+    "nvdiffrast",
+    "smplx",
+]
+
+[tool.uv]
+package = false
+no-build-isolation-package = ["nvdiffrast"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu117" }]
+torchvision = [{ index = "pytorch-cu117" }]
+gsplat = { git = "https://github.com/nerfstudio-project/gsplat.git", rev = "v1.3.0" }
+pytorch3d = { git = "https://github.com/facebookresearch/pytorch3d.git" }
+nvdiffrast = { git = "https://github.com/NVlabs/nvdiffrast" }
+smplx = { path = "third_party/smplx", editable = true }
+
+[tool.uv.extra-build-dependencies]
+chumpy = ["pip"]
+gsplat = [
+    "torch==2.0.0+cu117",
+    "setuptools<81",
+]
+pytorch3d = [
+    "torch==2.0.0+cu117",
+    "setuptools<81",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu117"
+url = "https://download.pytorch.org/whl/cu117"
+explicit = true

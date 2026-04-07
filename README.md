@@ -106,19 +106,11 @@ Run the following commands to set up the environment:
 git clone --recursive https://github.com/ziyc/drivestudio.git
 cd drivestudio
 
-# Create the environment
-conda create -n drivestudio python=3.9 -y
-conda activate drivestudio
-pip install -r requirements.txt
-pip install git+https://github.com/nerfstudio-project/gsplat.git@v1.3.0
-pip install git+https://github.com/facebookresearch/pytorch3d.git
-pip install git+https://github.com/NVlabs/nvdiffrast
-
-# Set up for SMPL Gaussians
-cd third_party/smplx/
-pip install -e .
-cd ../..
+# Create the environment with uv
+uv sync
 ```
+
+Dependency resolution is managed through `pyproject.toml` and `uv.lock`. Since `pytorch3d`, `gsplat`, and `nvdiffrast` are built from source, the local CUDA toolkit must match `torch==2.0.0+cu117`, which means CUDA 11.7.
 
 ## 📊 Prepare Data
 We support most popular public driving datasets. Detailed instructions for downloading and processing each dataset are available in the following documents:
