@@ -10,6 +10,7 @@ dependencies = [
     "timm==0.9.5",
     "pytorch_msssim==1.0.0",
     "omegaconf==2.3.0",
+    "setuptools<81",
     "torchmetrics==0.10.3",
     "tensorboard==2.11.0",
     "wandb==0.15.8",

@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import torch
 import torch.nn as nn
+from contextlib import nullcontext
 
 import kornia
 from enum import IntEnum
@@ -88,6 +89,7 @@ class BasicTrainer(nn.Module):
         self.gaussian_ctrl_general_cfg = gaussian_ctrl_general_cfg
         self.step = 0
         self.device = device
+        self.use_amp = self.optim_general.get("use_grad_scaler", False) and self.device.type == "cuda"
         
         # dataset infos
         self.num_train_images = num_train_images
@@ -225,7 +227,15 @@ class BasicTrainer(nn.Module):
 
         self.optimizer = torch.optim.Adam(groups, lr=0.0, eps=1e-15)
         self.lr_schedulers = lr_schedulers
-        self.grad_scaler = torch.cuda.amp.GradScaler(enabled=self.optim_general.get("use_grad_scaler", False))
+        self.grad_scaler = torch.amp.GradScaler(
+            "cuda",
+            enabled=self.optim_general.get("use_grad_scaler", False),
+        )
+
+    def autocast_context(self):
+        if not self.use_amp:
+            return nullcontext()
+        return torch.autocast(device_type="cuda", dtype=torch.float16)
     
     def _init_losses(self) -> None:
         sky_opacity_loss_fn = None
@@ -262,7 +272,10 @@ class BasicTrainer(nn.Module):
         #         torch.nn.utils.clip_grad_norm_(self.param_groups[params_name], max_norm)
         #     if any(any(p.grad is not None for p in g["params"]) for g in optimizer.param_groups):
         #         self.grad_scaler.step(optimizer)
-        self.optimizer.step()
+        if self.grad_scaler.is_enabled():
+            self.grad_scaler.step(self.optimizer)
+        else:
+            self.optimizer.step()
 
     def preprocess_per_train_step(self, step: int) -> None:
         self.step = step
@@ -282,6 +295,10 @@ class BasicTrainer(nn.Module):
             grads = self.info["means2d"].absgrad.clone()
         else:
             grads = self.info["means2d"].grad.clone()
+        if radii.dim() > 1:
+            radii = radii[0]
+        if grads.dim() > 2:
+            grads = grads[0]
         grads[..., 0] *= self.info["width"] / 2.0 * self.render_cfg.batch_size
         grads[..., 1] *= self.info["height"] / 2.0 * self.render_cfg.batch_size
         
@@ -291,8 +308,8 @@ class BasicTrainer(nn.Module):
             self.models[class_name].postprocess_per_train_step(
                 step=step,
                 optimizer=self.optimizer,
-                radii=radii[0, gaussian_mask],
-                xys_grad=grads[0, gaussian_mask],
+                radii=radii[gaussian_mask],
+                xys_grad=grads[gaussian_mask],
                 last_size=max(self.info["width"], self.info["height"])
             )
         
@@ -310,9 +327,12 @@ class BasicTrainer(nn.Module):
             self.viewer.update(step, num_train_rays_per_step)
     
     def update_visibility_filter(self) -> None:
+        radii = self.info["radii"]
+        if radii.dim() > 1:
+            radii = radii[0]
         for class_name in self.gaussian_classes.keys():
             gaussian_mask = self.pts_labels == self.gaussian_classes[class_name]
-            self.models[class_name].cur_radii = self.info["radii"][0, gaussian_mask]
+            self.models[class_name].cur_radii = radii[gaussian_mask]
 
     def process_camera(
         self,
@@ -358,7 +378,12 @@ class BasicTrainer(nn.Module):
                 continue
     
             # collect gaussians
-            gs["class_labels"] = torch.full((gs["_means"].shape[0],), self.gaussian_classes[class_name], device=self.device)
+            gs["class_labels"] = torch.full(
+                (gs["_means"].shape[0],),
+                self.gaussian_classes[class_name],
+                device=self.device,
+                dtype=torch.int8,
+            )
             for k, _ in gs.items():
                 gs_dict[k].append(gs[k])
         
@@ -390,14 +415,16 @@ class BasicTrainer(nn.Module):
     ) -> Dict[str, torch.Tensor]:
     
         def render_fn(opaticy_mask=None, return_info=False):
+            camtoworlds = cam.camtoworlds.float()
+            intrinsics = cam.Ks.float()
             renders, alphas, info = rasterization(
                 means=gs.means,
                 quats=gs.quats,
                 scales=gs.scales,
                 opacities=gs.opacities.squeeze()*opaticy_mask if opaticy_mask is not None else gs.opacities.squeeze(),
                 colors=gs.rgbs,
-                viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],  # [C, 4, 4]
-                Ks=cam.Ks[None, ...],  # [C, 3, 3]
+                viewmats=torch.linalg.inv(camtoworlds)[None, ...],  # [C, 4, 4]
+                Ks=intrinsics[None, ...],  # [C, 3, 3]
                 width=cam.W,
                 height=cam.H,
                 packed=self.render_cfg.packed,
@@ -502,14 +529,22 @@ class BasicTrainer(nn.Module):
     def backward(self, loss_dict: Dict[str, torch.Tensor]) -> None:
         # ----------------- backward ----------------
         total_loss = sum(loss for loss in loss_dict.values())
-        self.grad_scaler.scale(total_loss).backward()
+        if self.grad_scaler.is_enabled():
+            self.grad_scaler.scale(total_loss).backward()
+        else:
+            total_loss.backward()
         self.optimizer_step()
         
-        scale = self.grad_scaler.get_scale()
-        self.grad_scaler.update()
+        if self.grad_scaler.is_enabled():
+            scale = self.grad_scaler.get_scale()
+            self.grad_scaler.update()
+            new_scale = self.grad_scaler.get_scale()
+        else:
+            scale = 1.0
+            new_scale = 1.0
         
         # If the gradient scaler is decreased, no optimization step is performed so we should not step the scheduler.
-        if scale <= self.grad_scaler.get_scale():
+        if scale <= new_scale:
             for group in self.optimizer.param_groups:
                 if group["name"] in self.lr_schedulers:
                     new_lr = self.lr_schedulers[group["name"]](self.step)
@@ -546,7 +581,11 @@ class BasicTrainer(nn.Module):
         
         # mask loss
         if self.sky_opacity_loss_fn is not None:
-            sky_loss_opacity = self.sky_opacity_loss_fn(pred_occupied_mask, gt_occupied_mask) * self.losses_dict.mask.w
+            with torch.autocast(device_type="cuda", enabled=False):
+                sky_loss_opacity = self.sky_opacity_loss_fn(
+                    pred_occupied_mask.float(),
+                    gt_occupied_mask.float(),
+                ) * self.losses_dict.mask.w
             loss_dict.update({"sky_loss_opacity": sky_loss_opacity})
         
         # depth loss
@@ -769,14 +808,16 @@ class BasicTrainer(nn.Module):
             extras=None
         )
         
+        camtoworlds = cam.camtoworlds.float()
+        intrinsics = cam.Ks.float()
         render_colors, _, _ = rasterization(
             means=gs.means,
             quats=gs.quats,
             scales=gs.scales,
             opacities=gs.opacities.squeeze(),
             colors=gs.rgbs,
-            viewmats=torch.linalg.inv(cam.camtoworlds)[None, ...],  # [C, 4, 4]
-            Ks=cam.Ks[None, ...],  # [C, 3, 3]
+            viewmats=torch.linalg.inv(camtoworlds)[None, ...],  # [C, 4, 4]
+            Ks=intrinsics[None, ...],  # [C, 3, 3]
             width=cam.W,
             height=cam.H,
             packed=self.render_cfg.packed,

@@ -189,16 +189,21 @@ class EnvLight(torch.nn.Module):
         )
         
     def forward(self, image_infos):
-        l = image_infos["viewdirs"]
-        
-        l = (l.reshape(-1, 3) @ self.to_opengl.T).reshape(*l.shape)
-        l = l.contiguous()
-        prefix = l.shape[:-1]
-        if len(prefix) != 3:  # reshape to [B, H, W, -1]
-            l = l.reshape(1, 1, -1, l.shape[-1])
+        with torch.autocast(device_type="cuda", enabled=False):
+            l = image_infos["viewdirs"].float()
+            l = (l.reshape(-1, 3) @ self.to_opengl.T).reshape(*l.shape)
+            l = l.contiguous()
+            prefix = l.shape[:-1]
+            if len(prefix) != 3:  # reshape to [B, H, W, -1]
+                l = l.reshape(1, 1, -1, l.shape[-1])
 
-        light = dr.texture(self.base[None, ...], l, filter_mode='linear', boundary_mode='cube')
-        light = light.view(*prefix, -1)
+            light = dr.texture(
+                self.base[None, ...].float(),
+                l,
+                filter_mode='linear',
+                boundary_mode='cube'
+            )
+            light = light.view(*prefix, -1)
 
         return light
 

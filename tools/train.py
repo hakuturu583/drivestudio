@@ -254,14 +254,15 @@ def main(args):
                 cam_infos[k] = v.cuda(non_blocking=True)
         
         # forward & backward
-        outputs = trainer(image_infos, cam_infos)
-        trainer.update_visibility_filter()
+        with trainer.autocast_context():
+            outputs = trainer(image_infos, cam_infos)
+            trainer.update_visibility_filter()
 
-        loss_dict = trainer.compute_losses(
-            outputs=outputs,
-            image_infos=image_infos,
-            cam_infos=cam_infos,
-        )
+            loss_dict = trainer.compute_losses(
+                outputs=outputs,
+                image_infos=image_infos,
+                cam_infos=cam_infos,
+            )
         # check nan or inf
         for k, v in loss_dict.items():
             if torch.isnan(v).any():
@@ -277,10 +278,11 @@ def main(args):
         #-------------------------------  logging  ----------------------------------
         with torch.no_grad():
             # cal stats
-            metric_dict = trainer.compute_metrics(
-                outputs=outputs,
-                image_infos=image_infos,
-            )
+            with trainer.autocast_context():
+                metric_dict = trainer.compute_metrics(
+                    outputs=outputs,
+                    image_infos=image_infos,
+                )
         metric_logger.update(**{"train_metrics/"+k: v.item() for k, v in metric_dict.items()})
         metric_logger.update(**{"train_stats/gaussian_num_" + k: v for k, v in trainer.get_gaussian_count().items()})
         metric_logger.update(**{"losses/"+k: v.item() for k, v in loss_dict.items()})

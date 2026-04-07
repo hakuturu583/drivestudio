@@ -38,12 +38,18 @@ class DeformableNodes(RigidNodes):
         """
         assert local_means.shape[0] == self.point_ids.shape[0], \
             "its a bug here, we need to pass the mask for points_ids"
-        nonrigid_embed = self.instances_embedding[self.point_ids[..., 0]]
-        ins_height = self.instances_size[self.point_ids[..., 0]][..., 2]
-        x = local_means.data / ins_height[:, None] * 2
-        t = self.normalized_timestamps[self.cur_frame]
-        t = t.unsqueeze(0).repeat(self.point_ids.shape[0], 1)
-        delta_xyz, delta_quat, delta_scale = self.deform_network(x, t, nonrigid_embed)
+        with torch.autocast(device_type="cuda", enabled=False):
+            nonrigid_embed = self.instances_embedding[self.point_ids[..., 0]].float()
+            ins_height = self.instances_size[self.point_ids[..., 0]][..., 2].float().clamp_min(1e-6)
+            x = local_means.detach().float() / ins_height[:, None] * 2
+            t = self.normalized_timestamps[self.cur_frame].float()
+            t = t.unsqueeze(0).repeat(self.point_ids.shape[0], 1)
+            delta_xyz, delta_quat, delta_scale = self.deform_network(x, t, nonrigid_embed)
+            delta_xyz = torch.nan_to_num(delta_xyz, nan=0.0, posinf=0.0, neginf=0.0)
+            if delta_quat is not None:
+                delta_quat = torch.nan_to_num(delta_quat, nan=0.0, posinf=0.0, neginf=0.0)
+            if delta_scale is not None:
+                delta_scale = torch.nan_to_num(delta_scale, nan=0.0, posinf=0.0, neginf=0.0)
         return delta_xyz, delta_quat, delta_scale
     
     def get_gaussians(self, cam: dataclass_camera) -> Dict[str, torch.Tensor]:
@@ -132,9 +138,19 @@ class DeformableNodes(RigidNodes):
         deform the points
         """
         means = gaussian_dict["means"]
-        nonrigid_embed = self.instances_embedding[gaussian_dict["ids"].squeeze()]
-        cur_normalized_time = torch.tensor(cur_normalized_time, dtype=torch.float32, device=self.device).unsqueeze(0).repeat(means.shape[0], 1)
-        delta_xyz, delta_quat, delta_scale = self.deform_network(means, cur_normalized_time, nonrigid_embed)
+        with torch.autocast(device_type="cuda", enabled=False):
+            nonrigid_embed = self.instances_embedding[gaussian_dict["ids"].squeeze()].float()
+            cur_normalized_time = torch.tensor(
+                cur_normalized_time, dtype=torch.float32, device=self.device
+            ).unsqueeze(0).repeat(means.shape[0], 1)
+            delta_xyz, delta_quat, delta_scale = self.deform_network(
+                means.float(), cur_normalized_time, nonrigid_embed
+            )
+            delta_xyz = torch.nan_to_num(delta_xyz, nan=0.0, posinf=0.0, neginf=0.0)
+            if delta_quat is not None:
+                delta_quat = torch.nan_to_num(delta_quat, nan=0.0, posinf=0.0, neginf=0.0)
+            if delta_scale is not None:
+                delta_scale = torch.nan_to_num(delta_scale, nan=0.0, posinf=0.0, neginf=0.0)
         gaussian_dict["means"] = means + delta_xyz
         if delta_scale is not None:
             gaussian_dict["scales"] = gaussian_dict["scales"] + delta_scale

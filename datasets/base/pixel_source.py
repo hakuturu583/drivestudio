@@ -255,8 +255,8 @@ class CameraData(object):
                     self.distortions[ix].numpy(),
                 )
             images.append(rgb)
-        # normalize the images to [0, 1]
-        self.images = images = torch.from_numpy(np.stack(images, axis=0)) / 255
+        # Store compactly and convert to float only when a frame is fetched.
+        self.images = torch.from_numpy(np.stack(images, axis=0))
     
     def load_egocar_mask(self):
         """
@@ -276,7 +276,7 @@ class CameraData(object):
                     self.intrinsics[0].numpy(),
                     self.distortions[0].numpy(),
                 )
-            self.egocar_mask = torch.from_numpy(np.array(egocar_mask) > 0).float()
+            self.egocar_mask = torch.from_numpy(np.array(egocar_mask) > 0)
         else:
             self.egocar_mask = None
         
@@ -302,7 +302,7 @@ class CameraData(object):
                     self.distortions[ix].numpy(),
                 )
             dynamic_masks.append(np.array(dyn_mask) > 0)
-        self.dynamic_masks = torch.from_numpy(np.stack(dynamic_masks, axis=0)).float()
+        self.dynamic_masks = torch.from_numpy(np.stack(dynamic_masks, axis=0))
         
         human_masks = []
         for ix, fname in tqdm(
@@ -325,7 +325,7 @@ class CameraData(object):
                     self.distortions[ix].numpy(),
                 )
             human_masks.append(np.array(human_mask) > 0)
-        self.human_masks = torch.from_numpy(np.stack(human_masks, axis=0)).float()
+        self.human_masks = torch.from_numpy(np.stack(human_masks, axis=0))
         
         vehicle_masks = []
         for ix, fname in tqdm(
@@ -348,7 +348,7 @@ class CameraData(object):
                     self.distortions[ix].numpy(),
                 )
             vehicle_masks.append(np.array(vehicle_mask) > 0)
-        self.vehicle_masks = torch.from_numpy(np.stack(vehicle_masks, axis=0)).float()
+        self.vehicle_masks = torch.from_numpy(np.stack(vehicle_masks, axis=0))
         
     def load_sky_masks(self):
         sky_masks = []
@@ -372,7 +372,7 @@ class CameraData(object):
                     self.distortions[ix].numpy(),
                 )
             sky_masks.append(np.array(sky_mask) > 0)
-        self.sky_masks = torch.from_numpy(np.stack(sky_masks, axis=0)).float()
+        self.sky_masks = torch.from_numpy(np.stack(sky_masks, axis=0))
         
     def load_depth(
         self,
@@ -398,7 +398,6 @@ class CameraData(object):
                 self.WIDTH // self.buffer_downscale,
             ),
             dtype=torch.float32,
-            device=self.device,
         )
         
     def get_image_error_video(self) -> List[np.ndarray]:
@@ -445,7 +444,7 @@ class CameraData(object):
                 # we prioritize the dynamic objects by multiplying the error by 5
                 image_error_maps[dynamic_opacity > 0.1] *= 5
         # update the image error buffer
-        self.image_error_maps: Tensor = image_error_maps.to(self.device)
+        self.image_error_maps = image_error_maps.cpu()
         logger.info(f"Updated image error buffer for camera {self.cam_id}.")
 
     def to(self, device: torch.device):
@@ -488,7 +487,7 @@ class CameraData(object):
         egocar_mask = None
         
         if self.images is not None:
-            rgb = self.images[frame_idx]
+            rgb = self.images[frame_idx].to(dtype=torch.float32) / 255.0
             if self.downscale_factor != 1.0:
                 rgb = (
                     torch.nn.functional.interpolate(
@@ -518,7 +517,7 @@ class CameraData(object):
             .reshape(img_height, img_width, 2)
         )
         if self.egocar_mask is not None:
-            egocar_mask = self.egocar_mask
+            egocar_mask = self.egocar_mask.to(dtype=torch.float32)
             if self.downscale_factor != 1.0:
                 egocar_mask = (
                     torch.nn.functional.interpolate(
@@ -530,7 +529,7 @@ class CameraData(object):
                     .squeeze(0)
                 )
         if self.sky_masks is not None:
-            sky_mask = self.sky_masks[frame_idx]
+            sky_mask = self.sky_masks[frame_idx].to(dtype=torch.float32)
             if self.downscale_factor != 1.0:
                 sky_mask = (
                     torch.nn.functional.interpolate(
@@ -542,7 +541,7 @@ class CameraData(object):
                     .squeeze(0)
                 )
         if self.dynamic_masks is not None:
-            dynamic_mask = self.dynamic_masks[frame_idx]
+            dynamic_mask = self.dynamic_masks[frame_idx].to(dtype=torch.float32)
             if self.downscale_factor != 1.0:
                 dynamic_mask = (
                     torch.nn.functional.interpolate(
@@ -554,7 +553,7 @@ class CameraData(object):
                     .squeeze(0)
                 )
         if self.human_masks is not None:
-            human_mask = self.human_masks[frame_idx]
+            human_mask = self.human_masks[frame_idx].to(dtype=torch.float32)
             if self.downscale_factor != 1.0:
                 human_mask = (
                     torch.nn.functional.interpolate(
@@ -566,7 +565,7 @@ class CameraData(object):
                     .squeeze(0)
                 )
         if self.vehicle_masks is not None:
-            vehicle_mask = self.vehicle_masks[frame_idx]
+            vehicle_mask = self.vehicle_masks[frame_idx].to(dtype=torch.float32)
             if self.downscale_factor != 1.0:
                 vehicle_mask = (
                     torch.nn.functional.interpolate(
@@ -922,7 +921,7 @@ class ScenePixelSource(abc.ABC):
                     torch.ones(frame_num - int(frame_num * 0.1))
                 ))
                 error_weight = error_weight[..., None].repeat(1, self.num_cams).reshape(-1)
-                error_weight = error_weight[candidate_indices].to(self.device)
+                error_weight = error_weight[candidate_indices]
                 
                 image_mean_error = image_mean_error * error_weight
             idx = torch.multinomial(
@@ -950,7 +949,7 @@ class ScenePixelSource(abc.ABC):
         Update the image error buffer with the given render results for each camera.
         """
         # (img_num, )
-        image_error_buffer = torch.zeros(self.num_imgs, device=self.device)
+        image_error_buffer = torch.zeros(self.num_imgs, dtype=torch.float32)
         image_cam_id = torch.from_numpy(np.stack(render_results["cam_ids"], axis=0))
         for cam_id in self.camera_list:
             cam_name = self.camera_data[cam_id].cam_name

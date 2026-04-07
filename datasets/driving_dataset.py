@@ -695,7 +695,7 @@ class DrivingDataset(SceneDataset):
                 # attribute the color of the nearest pixel to the lidar point
                 points_color = cam.images[frame_idx][
                     _cam_points[:, 1].long(), _cam_points[:, 0].long()
-                ]
+                ].to(dtype=torch.float32) / 255.0
                 self.lidar_source.colors[visible_indices] = points_color
 
             cam.load_depth(

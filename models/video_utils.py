@@ -137,7 +137,8 @@ def render(
                 if isinstance(v, Tensor):
                     cam_infos[k] = v.cuda(non_blocking=True)
             # render the image
-            results = trainer(image_infos, cam_infos)
+            with trainer.autocast_context():
+                results = trainer(image_infos, cam_infos)
             
             # ------------- clip rgb ------------- #
             for k, v in results.items():

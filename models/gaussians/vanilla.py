@@ -143,7 +143,15 @@ class VanillaGaussians(nn.Module):
         return self.quat_act(self._quats)
     
     def quat_act(self, x: torch.Tensor) -> torch.Tensor:
-        return x / x.norm(dim=-1, keepdim=True)
+        x = torch.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+        norm = x.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+        quats = x / norm
+        invalid = ~torch.isfinite(quats).all(dim=-1, keepdim=True)
+        if invalid.any():
+            fallback = torch.zeros_like(quats)
+            fallback[..., 0] = 1.0
+            quats = torch.where(invalid, fallback, quats)
+        return quats
     
     def preprocess_per_train_step(self, step: int):
         self.step = step
