@@ -110,7 +110,7 @@ cd drivestudio
 uv sync
 ```
 
-Dependency resolution is managed through `pyproject.toml` and `uv.lock`. Since `pytorch3d`, `gsplat`, and `nvdiffrast` are built from source, the local CUDA toolkit must match `torch==2.0.0+cu117`, which means CUDA 11.7.
+Dependency resolution is managed through `pyproject.toml` and `uv.lock`. Since `pytorch3d`, `gsplat`, and `nvdiffrast` are built from source, the local CUDA toolkit must match `torch==2.8.0+cu128`, which means CUDA 12.8. PyTorch3D also expects `CUB_HOME` to point at the CUDA CUB headers, e.g. `export CUB_HOME=/usr/local/cuda-12.8/include/cub`.
 
 ## 📊 Prepare Data
 We support most popular public driving datasets. Detailed instructions for downloading and processing each dataset are available in the following documents:

@@ -4,9 +4,9 @@ version = "0.1.0"
 description = "DriveStudio environment definition"
 requires-python = "==3.9.*"
 dependencies = [
-    "torch==2.0.0+cu117",
-    "torchvision==0.15.0+cu117",
-    "xformers==0.0.18",
+    "torch==2.8.0+cu128",
+    "torchvision==0.23.0+cu128",
+    "xformers==0.0.32.post2",
     "timm==0.9.5",
     "pytorch_msssim==1.0.0",
     "omegaconf==2.3.0",
@@ -38,10 +38,14 @@ dependencies = [
 [tool.uv]
 package = false
 no-build-isolation-package = ["nvdiffrast"]
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu117" }]
-torchvision = [{ index = "pytorch-cu117" }]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+xformers = [{ index = "pytorch-cu128" }]
 gsplat = { git = "https://github.com/nerfstudio-project/gsplat.git", rev = "v1.3.0" }
 pytorch3d = { git = "https://github.com/facebookresearch/pytorch3d.git" }
 nvdiffrast = { git = "https://github.com/NVlabs/nvdiffrast" }
@@ -50,15 +54,15 @@ smplx = { path = "third_party/smplx", editable = true }
 [tool.uv.extra-build-dependencies]
 chumpy = ["pip"]
 gsplat = [
-    "torch==2.0.0+cu117",
+    "torch==2.8.0+cu128",
     "setuptools<81",
 ]
 pytorch3d = [
-    "torch==2.0.0+cu117",
+    "torch==2.8.0+cu128",
     "setuptools<81",
 ]
 
 [[tool.uv.index]]
-name = "pytorch-cu117"
-url = "https://download.pytorch.org/whl/cu117"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
