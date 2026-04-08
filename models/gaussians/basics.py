@@ -161,6 +161,7 @@ class dataclass_gs:
         
 def remove_from_optim(optimizer, deleted_mask, param_dict):
     """removes the deleted_mask from the optimizer provided"""
+    deleted_mask_cpu = deleted_mask.detach().cpu()
     for group_idx, group in enumerate(optimizer.param_groups):
         name = group["name"]
         if name in param_dict.keys():
@@ -170,9 +171,18 @@ def remove_from_optim(optimizer, deleted_mask, param_dict):
             param_state = optimizer.state[old_params]
             del optimizer.state[old_params]
 
-            # Modify the state directly without deleting and reassigning.
-            param_state["exp_avg"] = param_state["exp_avg"][~deleted_mask]
-            param_state["exp_avg_sq"] = param_state["exp_avg_sq"][~deleted_mask]
+            # Optimizer-state surgery can cause a large transient GPU allocation.
+            # Move the old state to CPU first, shrink it there, then move back.
+            exp_avg = param_state["exp_avg"]
+            exp_avg_sq = param_state["exp_avg_sq"]
+            state_device = exp_avg.device
+            exp_avg_cpu = exp_avg.detach().cpu()
+            exp_avg_sq_cpu = exp_avg_sq.detach().cpu()
+            del exp_avg, exp_avg_sq
+            if state_device.type == "cuda":
+                torch.cuda.empty_cache()
+            param_state["exp_avg"] = exp_avg_cpu[~deleted_mask_cpu].to(state_device)
+            param_state["exp_avg_sq"] = exp_avg_sq_cpu[~deleted_mask_cpu].to(state_device)
 
             # Update the parameter in the optimizer's param group.
             del optimizer.param_groups[group_idx]["params"][0]

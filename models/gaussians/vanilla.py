@@ -218,10 +218,13 @@ class VanillaGaussians(nn.Module):
         with torch.no_grad():
             # only split/cull if we've seen every image since opacity reset
             reset_interval = self.ctrl_cfg.reset_alpha_interval
+            densify_until_num_points = self.ctrl_cfg.get("densify_until_num_points", None)
             do_densification = (
                 self.step < self.ctrl_cfg.stop_split_at
                 and self.step % reset_interval > max(self.num_train_images, self.ctrl_cfg.refine_interval)
             )
+            if densify_until_num_points is not None and self.num_points >= densify_until_num_points:
+                do_densification = False
             # split & duplicate
             print(f"Class {self.class_prefix} current points: {self.num_points} @ step {self.step}")
             if do_densification:

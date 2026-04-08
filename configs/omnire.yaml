@@ -78,6 +78,9 @@ model:
         return_color: True
       near_randoms: 100_000
       far_randoms: 100_000
+    ctrl:
+      densify_until_num_points: 1500000
+      densify_grad_thresh: 0.001
     reg:
       sharp_shape_reg:
         w: 1.
